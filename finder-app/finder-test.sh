@@ -57,7 +57,10 @@ do
 	./writer.sh "$WRITEDIR/${username}$i.txt" "$WRITESTR"
 done
 
+echo "invocando al finder con writerdir=${WRITEDIR} Y writestr=${WRITESTR}"
 OUTPUTSTRING=$(./finder.sh "$WRITEDIR" "$WRITESTR")
+echo "salida finder ${OUTPUTSTRING}"
+
 
 # remove temporary directories
 rm -rf /tmp/aeld-data
