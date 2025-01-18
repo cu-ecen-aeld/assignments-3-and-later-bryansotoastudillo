@@ -1,4 +1,9 @@
 #include "systemcalls.h"
+#include <sys/types.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,7 +21,10 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
+    if(systen(cmd)){
+        perror("ERror");
+        return false;
+    }
     return true;
 }
 
@@ -61,6 +69,28 @@ bool do_exec(int count, ...)
 
     va_end(args);
 
+    pid_t process_id = fork();
+    
+    if (process_id<0)
+    {
+        perror("fork error");
+        exit(EXIT_FAILURE);
+        /* code */
+    }else if  (process_id == 0){
+        /*Es un hijo*/
+       execv(command[0],command);
+       perror("execv error");
+       exit(EXIT_FAILURE);
+    }else{
+        int status;
+        waitpid(process_id,&status,0);
+
+       return (status==0);
+        
+
+    }
+    
+
     return true;
 }
 
@@ -94,6 +124,36 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 */
 
     va_end(args);
+
+    int log_fd=open(outputfile, O_WRONLY|O_TRUNC|O_CREAT,0644);
+
+    if(log_fd<0){
+        perror("open");
+        return false;
+    }
+
+
+
+    pid_t pid = fork();
+    if (pid<0){
+        perror("fork error");
+    }else if (pid==0){
+
+        if (dup2(log_fd,1)){
+            perror("dup2");
+            exit(EXIT_FAILURE);
+        }
+
+        close(log_fd);
+        execv(command[0],command);
+        perror("execv error");
+        exit(EXIT_FAILURE);
+    }else{
+        close(log_fd);
+        int status;
+        waitpid(pid,&status,0);
+        return(status==0);
+    }
 
     return true;
 }
