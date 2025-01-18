@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/wait.h>
+
 #include <fcntl.h>
 
 /**
@@ -21,7 +23,7 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-    if(systen(cmd)){
+    if(system(cmd)){
         perror("ERror");
         return false;
     }
@@ -99,60 +101,61 @@ bool do_exec(int count, ...)
 *   This file will be closed at completion of the function call.
 * All other parameters, see do_exec above
 */
-bool do_exec_redirect(const char *outputfile, int count, ...)
-{
+bool do_exec_redirect(const char *outputfile, int count, ...) {
     va_list args;
     va_start(args, count);
-    char * command[count+1];
-    int i;
-    for(i=0; i<count; i++)
-    {
+
+    char *command[count + 1];
+    for (int i = 0; i < count; i++) {
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
-
-
-/*
- * TODO
- *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
- *   redirect standard out to a file specified by outputfile.
- *   The rest of the behaviour is same as do_exec()
- *
-*/
-
     va_end(args);
 
-    int log_fd=open(outputfile, O_WRONLY|O_TRUNC|O_CREAT,0644);
-
-    if(log_fd<0){
+    int log_fd = open(outputfile, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+    if (log_fd < 0) {
         perror("open");
         return false;
     }
 
-
-
     pid_t pid = fork();
-    if (pid<0){
+    if (pid < 0) {
         perror("fork error");
-    }else if (pid==0){
-
-        if (dup2(log_fd,1)){
+        close(log_fd);
+        return false;
+    } else if (pid == 0) {
+        // Redirigir stdout al archivo
+        if (dup2(log_fd, STDOUT_FILENO) == -1) {
             perror("dup2");
+            close(log_fd);
             exit(EXIT_FAILURE);
         }
-
         close(log_fd);
-        execv(command[0],command);
+
+        // Ejecutar el comando
+        if (command[0] == NULL) {
+            fprintf(stderr, "Command is NULL\n");
+            exit(EXIT_FAILURE);
+        }
+        execv(command[0], command);
         perror("execv error");
         exit(EXIT_FAILURE);
-    }else{
+    } else {
+        // Proceso padre
         close(log_fd);
         int status;
-        waitpid(pid,&status,0);
-        return(status==0);
+        if (waitpid(pid, &status, 0) == -1) {
+            perror("waitpid");
+            return false;
+        }
+
+        if (WIFEXITED(status)) {
+            printf("Child exited with status %d\n", WEXITSTATUS(status));
+        } else if (WIFSIGNALED(status)) {
+            printf("Child terminated by signal %d\n", WTERMSIG(status));
+        } else {
+            printf("Child did not terminate normally\n");
+        }
     }
 
     return true;
