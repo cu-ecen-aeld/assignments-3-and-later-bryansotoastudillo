@@ -101,7 +101,7 @@ else
     # Running outside Docker container
     TOOLCHAIN_DIR=/home/ubuntu/Documents/arm/arm-gnu-toolchain-13.3.rel1-x86_64-aarch64-none-linux-gnu
     # Program interpreter placed in “lib” directory
-    cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib/ld-2.33.so        ./lib/ld-linux-aarch64.so.1
+    cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1        ./lib/ld-linux-aarch64.so.1
     # Libraries placed in lib64 directory (since arch is 64 bit)
     cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libc.so.6      ./lib64/libc.so.6
     cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libm.so.6      ./lib64/libm.so.6
