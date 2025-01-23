@@ -13,9 +13,6 @@ FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
 CROSS_COMPILE=aarch64-none-linux-gnu-
 
-#install dependencies
-#sudo apt install -y flex bison libssl-dev qemu-system-arm
-
 if [ $# -lt 1 ]
 then
 	echo "Using default directory ${OUTDIR} for output"
@@ -23,8 +20,6 @@ else
 	OUTDIR=$1
 	echo "Using passed directory ${OUTDIR} for output"
 fi
-# after checking OUTDIR, we can know where the rootfs is
-ROOTFS=${OUTDIR}/rootfs
 
 mkdir -p ${OUTDIR}
 
@@ -39,13 +34,16 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
 
-    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
-    make -j12 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
-    printf "\033[0;33m DONE build kernel \033[0m\n"
+    # TODO: Add your kernel build steps here
+    make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
+    make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
+    make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
+#    make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
+    make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
+
 fi
 
 echo "Adding the Image in outdir"
-cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
@@ -55,100 +53,67 @@ then
     sudo rm  -rf ${OUTDIR}/rootfs
 fi
 
-mkdir -p ${ROOTFS}
-cd "${ROOTFS}"
+# TODO: Create necessary base directories
+mkdir -p ${OUTDIR}/rootfs
+cd ${OUTDIR}/rootfs
 mkdir -p bin dev etc home lib lib64 proc sbin sys tmp usr var
 mkdir -p usr/bin usr/lib usr/sbin
 mkdir -p var/log
-printf "\033[0;33mBase directories are created\033[0m\n"
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]
 then
-git clone git://busybox.net/busybox.git
+    git clone git://busybox.net/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
-    printf "\033[0;32mCheck out to version ${BUSYBOX_VERSION} of busybox\033[0m\n"
+    # TODO:  Configure busybox
 else
     cd busybox
 fi
 
-# Make and install busybox
-printf "\033[0;32m Make and install busybox \033[0m\n"
+# TODO: Make and install busybox
 make distclean
 make defconfig
-make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} -j$(nproc)
-make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${ROOTFS} install 
+make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} -j4
+make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${OUTDIR}/rootfs install
 
-cd "$ROOTFS"
+cd ${OUTDIR}/rootfs
 echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
-# Add library dependencies to rootfs
-printf "\033[0;32m Add library dependencies to rootfs \033[0m\n"
-TOOLCHAIN_DIR=empty
-if grep -q docker /proc/self/cgroup; then
-    # Running INSIDE Docker container
-    GCC_ARM_VERSION=13.3.rel1
-    # check the version in https://github.com/cu-ecen-aeld/aesd-autotest-docker/blob/master/docker/Dockerfile
-    TOOLCHAIN_DIR=/usr/local/arm-cross-compiler/install/arm-gnu-toolchain-$GCC_ARM_VERSION-x86_64-aarch64-none-linux-gnu
-    cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 ./lib/ld-linux-aarch64.so.1
-    cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libc.so.6 ./lib64/
-    cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libm.so.6 ./lib64/
-    cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libresolv.so.2 ./lib64/
-else
-    # Running outside Docker container
-    TOOLCHAIN_DIR=/home/ubuntu/Documents/arm/arm-gnu-toolchain-13.3.rel1-x86_64-aarch64-none-linux-gnu
-    # Program interpreter placed in “lib” directory
-    pwd
-    echo "${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 ./lib/ld-linux-aarch64.so.1"
-    cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 ./lib/ld-linux-aarch64.so.1
-    # Libraries placed in lib64 directory (since arch is 64 bit)
-    cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libc.so.6 ./lib64/libc.so.6
-    cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libm.so.6 ./lib64/libm.so.6
-    cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libresolv.so.2 ./lib64/libresolv.so.2
-fi
-printf "\033[0;33m Toolchain dir: ${TOOLCHAIN_DIR} \033[0m\n"
+# TODO: Add library dependencies to rootfs
+SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
+cp ${SYSROOT}/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib/.
+cp ${SYSROOT}/lib64/libm.so.6 ${OUTDIR}/rootfs/lib64/.
+cp ${SYSROOT}/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib64/.
+cp ${SYSROOT}/lib64/libc.so.6 ${OUTDIR}/rootfs/lib64/.
 
-# Make device nodes
-printf "\033[0;32m Make device nodes \033[0m\n"
-sudo mknod -m 666 dev/null    c 1 3
-sudo mknod -m 600 dev/console c 5 1
+# TODO: Make device nodes
+sudo mknod -m 666 ${OUTDIR}/rootfs/dev/null c 1 3
+sudo mknod -m 600 ${OUTDIR}/rootfs/dev/console c 5 1
 
-# Clean and build the writer utility
-printf "\033[0;32m Clean and build the writer utility \033[0m\n"
-cd "$FINDER_APP_DIR"
-make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} clean
-make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} -j$(nproc) all
+# TODO: Clean and build the writer utility
+cd ${FINDER_APP_DIR}
+make clean
+make CROSS_COMPILE=${CROSS_COMPILE} writer
 
-# Copy the finder related scripts and executables to the /home directory
+# TODO: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
-printf "\033[0;32m Copy related files to target rootfs \033[0m\n"
-# Copy the writer application to home directory of rootfs
-cp writer ${ROOTFS}/home
-make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} clean
-# Copy finder.sh, conf/username.txt, conf/assignment.txt, and finder-test.sh to home directory of rootfs
-cp finder.sh finder-test.sh ${ROOTFS}/home
-rsync -R conf/username.txt ${ROOTFS}/home
-rsync -R conf/assignment.txt ${ROOTFS}/home
-# Remove the usage of make in finder-test.sh since there is no make utility in the target device
-sed -i '51,53s/^/#/' ${ROOTFS}/home/finder-test.sh
-# Modify the finder-test.sh script to reference conf/assignment.txt instead of ../conf/assignment.txt
-sed -i 's|\.\./conf/assignment\.txt|conf/assignment.txt|g' ${ROOTFS}/home/finder-test.sh
-# Copy the autorun-qemu.sh script into the home directory of rootfs
-cp autorun-qemu.sh ${ROOTFS}/home
+mkdir -p ${OUTDIR}/rootfs/conf
+mkdir -p ${OUTDIR}/rootfs/home/conf
+cp -r ${FINDER_APP_DIR}/finder.sh ${OUTDIR}/rootfs/home/.
+cp -r ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home/.
+cp -r ${FINDER_APP_DIR}/autorun-qemu.sh ${OUTDIR}/rootfs/home/.
+cp -r ${FINDER_APP_DIR}/finder-test.sh ${OUTDIR}/rootfs/home/.
+cp -r ${FINDER_APP_DIR}/../conf/* ${OUTDIR}/rootfs/conf/.
+cp -r ${FINDER_APP_DIR}/../conf/* ${OUTDIR}/rootfs/home/conf/.
 
-# Chown the root directory
-printf "\033[0;32m Chown the root directory \033[0m\n"
-cd "$ROOTFS"
-sudo chown -R root:root *
+# TODO: Chown the root directory
+sudo chown -R root:root ${OUTDIR}/rootfs
 
-# Create initramfs.cpio.gz
-printf "\033[0;32m Create initramfs.cpio.gz \033[0m\n"
-cd "${ROOTFS}"
+# TODO: Create initramfs.cpio.gz
+cd "$OUTDIR/rootfs"
 find . | cpio -H newc -ov --owner root:root > ${OUTDIR}/initramfs.cpio
-cd "${OUTDIR}"
-gzip -f initramfs.cpio
-printf "\033[0;31m END \033[0m\n"
-exit 0
+gzip -f ${OUTDIR}/initramfs.cpio
+cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}/.
