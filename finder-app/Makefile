@@ -1,23 +1,15 @@
-# Compiler settings
-CC := $(CROSS_COMPILE)gcc
-CFLAGS := -Wall -Werror
-
-# Targets and files
 TARGET := writer
-SRC := writer.c
-OBJ := $(SRC:.c=.o)
 
-# Default target: build the "writer" application
-all: $(TARGET)
+ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-# Build the "writer" executable
-$(TARGET): $(OBJ)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
+CFLAGS := -ggdb -Werror -Wall -Wextra -Wno-format-truncation
 
-# Compile the source file into an object file
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+CFLAGS += -I$(ROOT_DIR)/include
 
-# Clean target: remove the "writer" executable and object files
+SOURCES := writer.c
+
+all:
+	$(CROSS_COMPILE)gcc $(CFLAGS) $(SOURCES) -o $(TARGET) -lpthread -lrt
+
 clean:
-	rm -f $(TARGET) $(OBJ)
+	rm -rf *.o $(TARGET)
